@@ -1,18 +1,17 @@
 ---
 name: agentosnext-pr-merge-review
-description: Review AgentOSNext pull requests on the self-hosted Forgejo instance, especially the PR1266–PR1290 review campaign, and decide whether the exact current head is safe to merge. Use for PR URLs, PR numbers, or requests to audit open or already-merged AgentOSNext PRs. Finish read-only first; after a separate confirmation of the exact review payload, optionally publish the review state/comment as the authenticated Forgejo user. Do not code-push, merge, or mutate anything else.
+description: Independently review an open AgentOSNext pull request on the self-hosted Forgejo instance at its exact current head. Act as a peer Reviewer alongside Claude Reviewer and Codex Reviewer without reading or relying on their reviews. Decide only APPROVE or REQUEST_CHANGES, explain the reasons, show the exact review body to the user, and publish it as the authenticated Forgejo user only after separate full-SHA confirmation. Do not code-push, merge, or mutate anything else.
 metadata:
   short-description: AgentOSNext exact-head Forgejo merge review
 ---
 
 # AgentOSNext PR merge review
 
-Produce an evidence-backed review of the exact current Forgejo head. This is a
-single read-only review workflow that combines the useful parts of generic PR
-review, contract/state-machine review, and closure-oriented factory review. It
-uses the supplied `pr-review-expert`, Apache `pr_review`, and Mastra
-`factory-review` ideas as references, but it does not inherit their
-DataFusion/Factory scope or their write-side effects.
+Produce an evidence-backed independent review of the exact current Forgejo
+head. The authenticated user acts as a peer Reviewer at the same workflow
+level as Claude Reviewer and Codex Reviewer; do not impersonate either bot or
+synthesize their verdicts. The only outcomes are `APPROVE` and
+`REQUEST_CHANGES`, each with a concise reasoned review body.
 
 ## Reviewer boundary
 
@@ -29,39 +28,35 @@ for the reviewer to perform.
   object, and merge-tree inspection is allowed.
 - Do not turn a missing local command into an invitation to run it. First check
   whether the corresponding controlled/cloud job is the repository-approved
-  evidence path. Missing evidence without a demonstrated defect is normally
-  `HOLD`; a reproducible uncovered defect is `REQUEST_CHANGES`.
+  evidence path. If evidence required to establish merge safety is missing,
+  use `REQUEST_CHANGES` and state exactly what must be supplied.
 - Never delete tests, weaken assertions, skip checks, or suggest a fail-open
   workaround as a way to make the PR mergeable.
 
 ## Safety and decision contract
 
 - Treat the Forgejo PR page and the checked-out repository as the sources of
-  evidence. Use `tea` for Forgejo PR metadata, reviews, comments, CI and review
-  state; use read-only `git` inspection and the PR’s recorded command output
-  for local evidence. On Windows, prefer PowerShell-compatible commands and do
-  not assume Bash tools exist.
+  evidence. Use `tea` only for PR metadata, exact base/head, changed files,
+  mergeability and CI/check status during the read-only phase; use read-only
+  `git` inspection and the PR's recorded command output for local evidence. Do
+  not call Review/comment/thread listing endpoints. On Windows, prefer
+  PowerShell-compatible commands and do not assume Bash tools exist.
 - Default to read-only. Never submit an inline comment, `APPROVE`, `REQUEST
   CHANGES`, merge, push, create a branch, or edit a PR merely because the
   review recommends it. Do those only after an explicit user instruction.
-- Bind every conclusion to the exact `headSha` reviewed. A review attached to
-  an older head is stale evidence, not approval of the current head.
-- If a Forgejo review record does not expose the head it reviewed, treat that
-  binding as uncertain until the body, commit context, or a local comparison
-  establishes it; do not automatically use it to close a current finding.
-- For an open PR, emit one final decision: `APPROVE`, `REQUEST_CHANGES`, or
-  `HOLD`. For a retrospective audit of a merged PR, use the same vocabulary as
-  an audit verdict: `APPROVE` means no surviving finding, `REQUEST_CHANGES`
-  means a defect escaped into the merged result, and `HOLD` means the evidence
-  cannot establish either verdict.
+- Bind every conclusion to the exact `headSha` inspected. A proposal prepared
+  for an older head is invalid for the current head.
+- Do not retrieve, quote, compare, reconcile, or rely on other reviewers'
+  Review bodies, states, findings, approvals, requests, or unresolved threads.
+  They are independent peer outputs and are outside this Review's evidence.
+- For an open PR, emit exactly one final decision: `APPROVE` or
+  `REQUEST_CHANGES`.
 - `REQUEST_CHANGES` requires at least one reproducible P0/P1/P2 finding, a
-  current-tree merge/conflict defect, or a required contract/evidence failure.
-  `HOLD` is for missing or stale evidence, unresolved mergeability, absent
-  required approval, an unverified external dependency, or a result that
-  cannot be safely classified. Do not use CI redness alone as a finding: in
-  AgentOSNext required CI is a quality signal, while the merge gate is approval
-  based. Do report a CI/test failure as a finding when it exposes a real PR
-  defect or leaves a required path unverified.
+  current-tree merge/conflict defect, or required contract/test evidence that
+  the author has not supplied. Do not use CI redness alone as a finding: in
+  AgentOSNext required CI is a quality signal, not the global merge gate. Do
+  report a CI/test failure when it exposes a real PR defect or leaves a changed
+  sensitive surface without the evidence required to approve it.
 
 ## Review workflow
 
@@ -84,27 +79,24 @@ latest `origin/dev` base, task branch/worktree isolation, clean status, and
 the declared sensitive surfaces. A moving branch name or an unbound base is a
 review finding; the reviewer does not repair it by fetching or rebasing.
 
-### 2. Comments-first and version control
+### 2. Independent evidence and head control
 
-Before inspecting only the patch, collect:
+Collect only evidence owned by the PR and repository:
 
-- all issue comments and inline review comments;
-- all review records, including `REQUEST_REVIEW`, `REQUEST_CHANGES`, and
-  `APPROVED`, with reviewer, timestamp, body, and head SHA if present;
-- unresolved threads and whether a later response actually closes the claim;
-- CI/check status at the current head and the PR's mergeability.
+- PR metadata, body, base/head SHAs, changed files and mergeability;
+- the exact patch and materialized merge tree;
+- repository product/architecture/contract authorities;
+- submitted test changes and author-recorded local evidence;
+- current-head CI/check results as independent quality evidence.
 
-Reconcile each technical finding against the current tree. Mark old findings
-as stale only when the changed code, exact head, or merge-tree proves the claim
-no longer applies. A later approval does not erase an unresolved finding by
-assertion; reproduce the prior counterexample or verify the stated closure.
-If the PR has no formal technical review, say so explicitly. For an open PR,
-missing required approval normally yields `HOLD`, not an inferred approval.
+Do not open the PR's Review list, review comments, requested-review records, or
+unresolved review threads. Do not mention whether Claude Reviewer, Codex
+Reviewer, a Human Reviewer, or any other Reviewer approved or rejected it.
 
-Before finalizing, fetch the PR metadata and review/thread list one more time.
-If the head SHA, mergeability, review state, or relevant comments changed
-during the review, discard the old verdict and re-review the new head (or
-return `HOLD` with the drift explicitly recorded).
+Before finalizing, fetch the PR metadata one more time. If the head SHA,
+mergeability, PR state, or changed-file set moved during the review, discard
+the old verdict and review the new head again. If the PR is no longer open,
+stop without preparing a Forgejo Review-state write.
 
 ### 3. Freeze the candidate and inspect the actual delta
 
@@ -176,8 +168,11 @@ fence, SDK boundary, or acceptance claim. Report the interaction and evidence;
 do not invent an ordering recommendation unless the repository or user has
 explicitly authorized one.
 
-Use the campaign patterns in
-[references/forgejo-review-patterns.md](references/forgejo-review-patterns.md)
+This is a code/contract interaction check only. Do not read or report any
+Review attached to those neighboring PRs.
+
+Use the changed-surface checks in
+[references/agentosnext-review-checks.md](references/agentosnext-review-checks.md)
 when the PR is in or adjacent to PR1266–PR1290. The patterns are routing
 signals and observed examples, not pre-decided findings: re-check every item
 against the current head.
@@ -195,26 +190,23 @@ Use severity P0–P3:
 - P3: non-blocking robustness, documentation, test-quality, or maintainability
   issue.
 
-Every P0–P2 finding must include: priority, exact file and line (or stable
- symbol), triggering input/state, observed behavior, expected frozen behavior,
- consequence, and the smallest credible fix plus a regression test. Include a
- short “actively checked and not a finding” section for tempting false
- positives. Keep CI, environment limitations, merge conflicts, and cross-PR
- reminders in separate subsections so they are not accidentally counted as
- code findings.
+Every blocking finding must include: priority, exact file and line (or stable
+symbol), triggering input/state, observed behavior, expected frozen behavior,
+consequence, and the smallest credible fix plus a regression test. Keep CI and
+environment limitations separate from code findings.
 
-The final report should start with the decision and head SHA, then list
-findings in priority order, evidence/verification, stale-finding closure,
-cross-PR interactions, and the exact conditions for changing `HOLD` or
-`REQUEST_CHANGES`. Do not claim a cloud, real-platform, database, browser, or
-production test ran unless its exact evidence is available.
+The user-facing result is a publication proposal, not a synthesis of other
+reviews. It contains only the repository/PR, exact head SHA, proposed Forgejo
+state, and the complete reasoned Review body. The body should be concise but
+specific: decision, P0/P1/P2/P3 counts when useful, blocking reasons for
+`REQUEST_CHANGES`, or the main safety/coverage reasons for `APPROVE`. Do not
+claim a cloud, real-platform, database, browser, or production test ran unless
+its exact evidence is available.
 
 `APPROVE` is allowed only when the final exact head is stable, its materialized
-merge is safe, required evidence and approval/threads are present, and no P0–P2
-finding remains (P3 items may be listed as non-blocking). Priority wins over
-evidence gaps: a reproduced P0–P2 is `REQUEST_CHANGES` even if an approval
-exists; with no finding but incomplete evidence, approval, or mergeability,
-use `HOLD`.
+merge is safe, required author/CI evidence is present, and no P0–P2 finding
+remains (P3 items may be noted as non-blocking). Otherwise use
+`REQUEST_CHANGES` and give the exact defect or missing required evidence.
 
 ## Review publication protocol
 
@@ -226,13 +218,11 @@ finish the review and ask for confirmation of the final payload first.
 After the read-only report, stop and present a publication proposal containing:
 
 - repository and PR number;
-- final exact head SHA and current PR state;
-- proposed verdict: `APPROVE`, `REQUEST_CHANGES`, or `HOLD`;
-- proposed Forgejo write: matching review state, comment-only, or none;
+- final exact 40-hex head SHA and confirmation that the PR is open;
+- proposed Forgejo Review state: `APPROVE` or `REQUEST_CHANGES`;
 - the complete top-level review body;
-- every inline comment with file, line, priority, and body, if any;
-- a note that the operation will be sent as the authenticated user’s Forgejo
-  identity.
+- a note that the operation will be sent as the authenticated user's own
+  independent Reviewer identity, alongside (not as) Claude/Codex Reviewer.
 
 Wait for an explicit confirmation that identifies the PR, accepts the state and
 text, and includes or unambiguously accepts the complete 40-hex head SHA from
@@ -241,24 +231,21 @@ head `<40-hex-head-sha>`”。“看起来可以”“继续”“帮我处理�
 or the original review request is not sufficient confirmation. Do not silently
 shorten, soften, or rewrite the confirmed payload.
 
-If the verdict is `HOLD`, publish no Review state. A comment-only explanation
-requires a new confirmation that explicitly accepts comment-only and its exact
-body; never convert `HOLD` to `APPROVE` or `REQUEST_CHANGES` implicitly.
-
 When confirmation arrives:
 
-1. Re-read the PR metadata, current head, mergeability, unresolved threads,
-   and current user identity. If the head or relevant review context changed,
-   do not write; report the drift and prepare a new proposal.
-2. Submit only the confirmed review/comment/status through the authenticated
-   Forgejo `tea`/API write operation. `APPROVE` and `REQUEST_CHANGES` are review
-   state mutations allowed for an open PR; a merged or closed retrospective
-   audit may publish only an explicitly confirmed comment-only record. Never
-   expose credentials.
-3. Read the PR back and verify the new review/comment, state, author identity,
-   head binding, and timestamp. If submission fails or the readback is
-   ambiguous, stop and report it; do not retry or use another write path
-   without a new confirmation.
+1. Re-read only the PR metadata, exact head, PR state, mergeability, and current
+   authenticated user identity. Do not read other Reviews or threads. If the
+   head or PR state changed, do not write; review the new head and prepare a new
+   proposal.
+2. Submit exactly one top-level formal Review through authenticated Forgejo
+   `tea`/API: the confirmed `APPROVE` or `REQUEST_CHANGES` state plus the
+   confirmed body. Do not create inline or comment-only records. Never expose
+   credentials.
+3. Read back only the newly submitted Review by its returned ID and verify its
+   state, author identity, exact body, head binding, and timestamp. Do not use
+   other Reviews as evidence. If submission fails or readback is ambiguous,
+   stop and report it; do not retry or use another write path without a new
+   confirmation.
 
 This protocol authorizes posting the review result to Forgejo as the user. It
 does not authorize a Git code push, branch creation, merge, or PR edit. A code

@@ -1,34 +1,35 @@
 # AgentOSNext PR Merge Review
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue)](https://github.com/CamelliaLilium/agentosnext-pr-merge-review/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-v2.0.0-blue)](https://github.com/CamelliaLilium/agentosnext-pr-merge-review/releases/tag/v2.0.0)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 一个面向 AgentOSNext 自托管 Forgejo PR 的 Codex Review Skill。
 
-它把实际 Codex Reviewer / Claude Reviewer 在 AgentOSNext PR 中表现出的评审方式，整理成可重复执行的 exact-head Review 流程：先只读评审，再把将要发布的状态和完整评论展示给用户；只有用户明确确认 PR、40 位 head SHA、状态和正文后，才允许以当前认证用户身份写入 Forgejo。
+它让当前认证用户以与 Codex Reviewer / Claude Reviewer 并列的独立 Reviewer 身份，对 exact head 作出自己的判断。Skill 不读取、不汇总、不响应其他 Reviewer 的结论；先只读评审，再把 `APPROVE` 或 `REQUEST_CHANGES` 状态和完整理由展示给用户。只有用户明确确认 PR、40 位 head SHA、状态和正文后，才允许写入 Forgejo。
 
-当前稳定版本：`v1.0.0`。
+当前稳定版本：`v2.0.0`。
 
 ## 主要能力
 
 - 固定 PR 的 exact base/head SHA，避免审错版本。
-- comments-first：读取已有 Review、评论、未解决线程和过期结论。
+- 独立 Reviewer：不读取或采纳 Claude、Codex 或其他 Reviewer 的 Review。
 - 区分 owning diff、机械合并和真实冲突解。
 - 审查产品/架构文档、API/Proto、Go、Persistence/Migration、Web/BFF、部署、身份、安全与 SDK Driver。
 - 要求 Bugfix 具备“修复前失败、修复后通过”的定向回归证据。
 - Reviewer 只检查代码、架构、风险、测试变更和作者/CI 证据，不替 PR 作者执行测试。
-- 最终结论固定为 `APPROVE`、`REQUEST_CHANGES` 或 `HOLD`。
+- 最终结论只允许 `APPROVE` 或 `REQUEST_CHANGES`，并给出原因。
+- 所有理由集中在一条 top-level formal Review 中，不发布 inline/comment-only 记录。
 - Review 发布采用二阶段确认，不会把“帮我 Review”误当成 Forgejo 写权限。
 
 ## 一条 Prompt 完成安装和配置
 
-复制下面整段 Prompt，粘贴给你自己的 Codex。该 Prompt 固定安装 `v1.0.0`，因此结果可复现。
+复制下面整段 Prompt，粘贴给你自己的 Codex。该 Prompt 固定安装 `v2.0.0`，因此结果可复现。
 
 ```text
 请安装并配置公开 Codex Skill：agentosnext-pr-merge-review。
 
 来源（固定版本）：
-https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v1.0.0/skills/agentosnext-pr-merge-review
+https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v2.0.0/skills/agentosnext-pr-merge-review
 
 请严格执行以下要求：
 
@@ -38,8 +39,9 @@ https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v1.0.0/skills
 4. 安装完成后验证：
    - SKILL.md 的 name 必须是 agentosnext-pr-merge-review；
    - agents/openai.yaml 存在；
-   - references/author-self-check-matrix.md、forgejo-review-patterns.md、review-publication-protocol.md 均存在；
+   - references/author-self-check-matrix.md、agentosnext-review-checks.md、review-publication-protocol.md 均存在；
    - LICENSE.txt 存在；
+   - Skill 明确以当前用户的独立 Reviewer 身份工作，不读取其他 Review，只产生 APPROVE 或 REQUEST_CHANGES；
    - 如果本机有 skill-creator 的 quick_validate.py，使用 UTF-8 环境运行验证。
 5. 只读检查运行前置条件并逐项报告，不要替我登录或索要/打印凭据：
    - git 可用；
@@ -53,7 +55,7 @@ https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v1.0.0/skills
 如果 $skill-installer 无法自动调用，可以使用其官方 install-skill-from-github.py helper，参数必须等价于：
 --repo CamelliaLilium/agentosnext-pr-merge-review
 --path skills/agentosnext-pr-merge-review
---ref v1.0.0
+--ref v2.0.0
 仍然必须遵守“不覆盖已有目录”和“不执行 Forgejo 写操作”的要求。
 ```
 
@@ -62,7 +64,7 @@ https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v1.0.0/skills
 如果不使用上面的 Prompt，可以让 Codex 调用 `$skill-installer`：
 
 ```text
-$skill-installer install https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v1.0.0/skills/agentosnext-pr-merge-review
+$skill-installer install https://github.com/CamelliaLilium/agentosnext-pr-merge-review/tree/v2.0.0/skills/agentosnext-pr-merge-review
 ```
 
 或直接运行本机 Codex 自带的 installer helper：
@@ -71,7 +73,7 @@ $skill-installer install https://github.com/CamelliaLilium/agentosnext-pr-merge-
 python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py \
   --repo CamelliaLilium/agentosnext-pr-merge-review \
   --path skills/agentosnext-pr-merge-review \
-  --ref v1.0.0
+  --ref v2.0.0
 ```
 
 安装或更新后重启 Codex，使新的 Skill metadata 生效。
@@ -83,20 +85,21 @@ python ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github
 ```text
 使用 $agentosnext-pr-merge-review 只读评审
 https://forgejo.example.com/owner/repo/pulls/123，判断当前 exact head 是否可以合并。
-不要向 Forgejo 写入；先给我完整 Review 报告和待发布提案。
+不要读取其他 Reviewer 的 Review，也不要向 Forgejo 写入；先给我 APPROVE 或 REQUEST_CHANGES、完整原因和待发布提案。
 ```
 
 对于 AgentOSNext：
 
 ```text
 使用 $agentosnext-pr-merge-review 评审 AgentOSNext PR #1290。
-先完成只读 Review，给出 APPROVE / REQUEST_CHANGES / HOLD、完整正文和 inline comments；等待我确认后再发布。
+你是与 Claude Reviewer、Codex Reviewer 并列的独立 Reviewer，不读取或采纳他们的 Review。
+先完成只读 Review，只给出 APPROVE 或 REQUEST_CHANGES 及完整 top-level 正文；等待我确认后再发布。
 ```
 
 确认发布必须包含完整 SHA，例如：
 
 ```text
-确认将以上正文和 inline comments 以 REQUEST_CHANGES 发布到
+确认将以上 top-level Review 正文以 REQUEST_CHANGES 发布到
 agentos/AgentOSNext#1290，head cf5d4e8ffb6accf057a6b4f3b25e91d46f5418a8。
 ```
 
@@ -104,13 +107,12 @@ agentos/AgentOSNext#1290，head cf5d4e8ffb6accf057a6b4f3b25e91d46f5418a8。
 
 ## 发布边界
 
-该 Skill 默认只读。用户确认后可以发布：
+该 Skill 默认只读。用户确认后只可以发布一条正式 top-level Review：
 
-- Forgejo top-level Review；
-- inline comments；
 - `APPROVE`；
-- `REQUEST_CHANGES`；
-- comment-only。
+- `REQUEST_CHANGES`。
+
+Review 正文必须包含作出该状态的原因；不创建 inline comment 或 comment-only 记录。
 
 以下操作始终不包含在 Review 发布授权中：
 
@@ -120,7 +122,7 @@ agentos/AgentOSNext#1290，head cf5d4e8ffb6accf057a6b4f3b25e91d46f5418a8。
 - 关闭/重开 PR；
 - 修改 PR 标题、正文、标签或其他元数据。
 
-`HOLD` 默认不写入状态；如需解释，只能重新确认 comment-only payload。已合并或已关闭 PR 的回顾审计也只能发布 comment-only。
+PR 已合并或关闭时不发布任何 Review 状态。
 
 ## 前置条件
 
@@ -146,7 +148,7 @@ agentos/AgentOSNext#1290，head cf5d4e8ffb6accf057a6b4f3b25e91d46f5418a8。
         │   └── openai.yaml
         └── references/
             ├── author-self-check-matrix.md
-            ├── forgejo-review-patterns.md
+            ├── agentosnext-review-checks.md
             └── review-publication-protocol.md
 ```
 

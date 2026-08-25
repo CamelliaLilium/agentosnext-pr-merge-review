@@ -11,17 +11,13 @@ Present a compact, exact card before any Forgejo write:
 Repository: agentos/AgentOSNext
 PR: #<number>
 Current head: <full SHA>
-Current state: <open|merged|closed>
-Proposed verdict: <APPROVE|REQUEST_CHANGES|HOLD>
-Proposed Forgejo write: <APPROVE|REQUEST_CHANGES|comment-only|none>
+Current state: open
+Proposed Forgejo Review state: <APPROVE|REQUEST_CHANGES>
 
 Top-level body:
 <exact body>
 
-Inline comments:
-- <path>:<line> [P<0-3>] <exact body>
-
-Publish as: current authenticated Forgejo user
+Publish as: current authenticated Forgejo user's independent Reviewer identity
 ```
 
 The user must confirm the PR, complete 40-hex head SHA, review state, and
@@ -34,14 +30,10 @@ again. Do not interpret an approval of the analysis as approval to publish it.
   the review’s own decision gate passed.
 - `REQUEST_CHANGES`: publish all blocking P0–P2 findings and their evidence;
   do not omit a finding merely to make the status acceptable.
-- `comment-only`: publish an observation without changing approval state. Use
-  this for non-blocking P3 notes or a requested factual comment.
-- `HOLD`: publish no review state. A comment explaining the hold is allowed only
-  after a separate confirmation whose card says `comment-only` and includes
-  the exact hold explanation.
-- Inline comments: preserve stable file/line anchors. If a line moved or the
-  Forgejo API cannot bind the location safely, convert it to a top-level note
-  and ask for confirmation of the changed payload.
+
+The only allowed records are formal `APPROVE` and `REQUEST_CHANGES` Reviews.
+Put all reasons and file/line references in the single top-level Review body;
+do not create comment-only or inline records.
 
 ## Preflight and readback
 
@@ -49,22 +41,27 @@ Immediately before writing, re-fetch the PR and verify:
 
 - the full head SHA is unchanged;
 - the PR is still the same repository and number;
-- the proposed state is still appropriate after new comments/reviews;
+- the PR is still open and the materialized merge context has not changed;
 - the authenticated identity is the user’s intended Forgejo account.
 
-State mutation is limited to an open PR. For a merged or closed retrospective
-audit, `APPROVE`/`REQUEST_CHANGES` is an internal audit verdict only; Forgejo
-publication is comment-only and requires explicit confirmation of that form.
+Do not retrieve other Review bodies, states, review comments, or threads during
+preflight. The current user is an independent peer Reviewer and does not need
+to reconcile Claude Reviewer, Codex Reviewer, or any other Reviewer.
 
-After writing, re-fetch and record the resulting review/comment ID, author,
-state, body checksum or exact text, head context, and timestamp. A successful
+State mutation is limited to an open PR. If the PR is merged or closed, do not
+publish anything through this Skill.
+
+After writing, fetch the newly returned Review ID and record its author, state,
+body checksum or exact text, head context, and timestamp. Do not enumerate or
+interpret other Reviews. A successful
 HTTP response without readback is not publication proof. A changed head,
 ambiguous identity, failed request, or mismatched body cancels the operation;
 do not retry automatically.
 
 ## Scope boundary
 
-This protocol covers PR Review/Comment/Approve/Request Changes writes. It does
-not cover `git push`, branch creation, merge, closing/reopening a PR, or editing
-PR metadata. Those operations require a separate user request and a separate
-confirmation of their target and side effects.
+This protocol covers one formal PR Review write: `APPROVE` or
+`REQUEST_CHANGES`, with its reason body. It does not cover standalone comments,
+inline comments, `git push`, branch creation, merge, closing/reopening a PR, or
+editing PR metadata. Those operations require a separate workflow and are not
+performed by this Skill.

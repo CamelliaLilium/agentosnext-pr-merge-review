@@ -70,8 +70,9 @@ Check the PR evidence and diff for all applicable rules:
 - Docker/kind/full-cluster work is used only when container, database, or
   cluster behavior actually changed.
 
-An absent or contradictory author/CI record is an evidence gap. It becomes a
-code finding when the diff demonstrates an uncovered failure mode (for example
-an unexecutable directly invoked script, a parent lock deadlock, or a parser
-that only works on hand-written YAML); otherwise report `HOLD` rather than
-running the missing check yourself.
+An absent or contradictory required author/CI record is a reason for
+`REQUEST_CHANGES`: state the exact missing evidence and changed sensitive
+surface. When the diff also demonstrates an uncovered failure mode (for
+example an unexecutable directly invoked script, a parent lock deadlock, or a
+parser that only works on hand-written YAML), report that concrete defect as
+the primary reason. Do not run the missing check yourself.
