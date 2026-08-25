@@ -1,0 +1,7 @@
+interface:
+  display_name: "AgentOSNext PR Merge Review"
+  short_description: "Exact-head Forgejo review for AgentOSNext PRs"
+  default_prompt: "Use $agentosnext-pr-merge-review to review an AgentOSNext Forgejo PR at its exact current head."
+
+policy:
+  allow_implicit_invocation: true
